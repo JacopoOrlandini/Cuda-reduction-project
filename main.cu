@@ -1,7 +1,7 @@
 #include <stdio.h>
-
-#define w 4
-#define h 4
+#include <cuda.h>
+#define w 256 //righe
+#define h 32	//colonne
 #define N w*h
 
 __global__ void reduce(int *g_idata, int *g_odata);
@@ -18,15 +18,14 @@ int main( void ) {
     cudaMalloc( (void**)&dev_b, size );
 
     fill_array( a, N );
-    int i;
-    printf("Valori che voglio ottenere dalla riduzione\n");
+//    printf("Valori che voglio ottenere dalla riduzione\n");
     printf("+-------------------------+\n");
     stampa_mat(a);
     printf("+-------------------------+\n\n");
-    for (i = 0; i < 2; ++i) {
+    for (int i = 0; i < h; ++i) {//colonna
     	int tot = 0;
-    	for (int j = 0;  j < w; ++ j) {
-    		tot += a[j+i*4];
+    	for (int j = 0;  j < w; ++ j) {//riga
+    		tot += a[j*h+i];
 		}
     	printf("tot[%d] = %d\n",i,tot);
 	}
@@ -36,8 +35,9 @@ int main( void ) {
     cudaMemcpy( dev_b, b, size, cudaMemcpyHostToDevice );
 
     dim3 blocksize(w); // create 1D threadblock
-    dim3 gridsize(w/2);  //create 1D grid
+    dim3 gridsize(h);  //create 1D grid
 
+    //8*358
     reduce<<<gridsize, blocksize>>>(dev_a, dev_b);
 
     // copy device result back to host copy of c
@@ -53,32 +53,35 @@ int main( void ) {
 
 __global__ void reduce(int *g_idata, int *g_odata) {
 
-    __shared__ int sdata[w]; // per block
+    __shared__ int sdata[w]; // w=16
 
     // each thread loads one element from global to shared mem
     // note use of 1D thread indices (only) in this kernel
-    int i = blockIdx.x + blockDim.x*threadIdx.x;
+    int i = blockIdx.x + gridDim.x*threadIdx.x;//non va bene per piu righe che colonne
+    unsigned int tid = threadIdx.x;
     //blockDim = 256;
     //blockIdx.x = 0,1,2,3;
-    sdata[threadIdx.x] = g_idata[i]; //sdata filled with g_idata per block
-	printf("[loaded]	sdata[%d]=%d, blckIdx.x:%d\n",i,sdata[threadIdx.x],blockIdx.x);
+    sdata[tid] = g_idata[i]; //sdata filled with g_idata per block
+	//printf("[loaded]	sdata[%d]=%d, blckIdx.x:%d\n",i,sdata[threadIdx.x],blockIdx.x);
     __syncthreads();
     // do reduction in shared mem
     for (int s=1; s < blockDim.x; s *=2)
     {
         int index = 2 * s * threadIdx.x;
-
-        if (index < blockDim.x)
+        if (index < blockDim.x )
         {
+      //      printf("index:%d,threadIdx:%d,blockIdx.x:%d, sdata[%d]=%d\n",index,threadIdx.x,blockIdx.x,index,sdata[index]);
+        	if(threadIdx.x == 0 && blockIdx.x == 0){
+        		//printf("sdata[index+s] = %d,index=%d,s=%d\n",sdata[index+s],index,s);
+        	}
             sdata[index] += sdata[index + s];
         }
         __syncthreads();
     }
 
     // write result for this block to global mem
-    if (threadIdx.x == 0){
-    	for (int i  = 0;  i  < w*1; ++i ) {
-    		printf("[reduction]	sdata[%d]=%d\n",i,sdata[i]);
+    if (tid == 0){
+    	printf("[reduction]	sdata[%d]=%d\n",blockIdx.x,sdata[tid]);
     		__syncthreads();
 		}
         atomicAdd(g_odata,sdata[0]); //prende tutti i valori dei vari blocchi e li somma
@@ -90,7 +93,7 @@ __global__ void reduce(int *g_idata, int *g_odata) {
          * sdata[0]=256; //blc3
          * L'atomic add restituisce 1024
          */
-    	}
+
 }
 
 // CPU function to generate a vector of random integers
@@ -103,7 +106,7 @@ void stampa_mat(int *a){
 	int i, j;
 	for (i = 0; i < w; ++i) {
 		for (j = 0; j < h; ++j) {
-			printf("%d\t",a[j+i*w]);
+			printf("%d\t",a[j+i*h]);
 		}
 		printf("\n");
 	}
