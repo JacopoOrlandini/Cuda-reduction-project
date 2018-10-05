@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <cuda.h>
-#define w 256 //righe
-#define h 32	//colonne
+#define w  32//righe
+#define h 5248	//colonne
 #define N w*h
 
 __global__ void reduce(int *g_idata, int *g_odata);
@@ -20,9 +20,9 @@ int main( void ) {
     fill_array( a, N );
 //    printf("Valori che voglio ottenere dalla riduzione\n");
     printf("+-------------------------+\n");
-    stampa_mat(a);
+   // stampa_mat(a);
     printf("+-------------------------+\n\n");
-    for (int i = 0; i < h; ++i) {//colonna
+    for (int i = 5221; i < 5225; ++i) {//colonna
     	int tot = 0;
     	for (int j = 0;  j < w; ++ j) {//riga
     		tot += a[j*h+i];
@@ -80,7 +80,7 @@ __global__ void reduce(int *g_idata, int *g_odata) {
     }
 
     // write result for this block to global mem
-    if (tid == 0){
+    if (tid == 0 && blockIdx.x >5220){
     	printf("[reduction]	sdata[%d]=%d\n",blockIdx.x,sdata[tid]);
     		__syncthreads();
 		}
