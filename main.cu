@@ -66,7 +66,7 @@ __global__ void reduce(float *g_idata, float *g_odata) {
     sdata[tid] = g_idata[i];
 	//printf("[loaded]	sdata[%f]=%f, blckIdx.x:%f\n",i,sdata[threadIdx.x],blockIdx.x);
     __syncthreads();
-    // do reduction in shared mem
+    // do reduction in shared memory
     for (int s=1; s < blockDim.x; s *=2)
     {
         int index = 2 * s * threadIdx.x;
